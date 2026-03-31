@@ -30,7 +30,7 @@ function LogForm() {
   const [review, setReview] = useState('')
   const [spoiler, setSpoiler] = useState(false)
   const [saved, setSaved] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   function handleInput(val: string) {
     setQuery(val)
