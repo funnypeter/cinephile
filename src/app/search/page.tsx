@@ -1,0 +1,119 @@
+'use client'
+import { useState, useRef } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { apiFetch, IMG, GENRE_MAP } from '@/lib/api'
+import type { TVShow, SearchResult } from '@/lib/types'
+
+const TRENDING_TAGS = ['Breaking Bad','The Bear','Severance','Succession','House of the Dragon','The Last of Us','Shōgun','Andor','Silo','The Diplomat']
+
+export default function SearchPage() {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<TVShow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+
+  function handleInput(val: string) {
+    setQuery(val)
+    clearTimeout(timerRef.current)
+    if (!val.trim()) { setSearched(false); setResults([]); return }
+    setLoading(true)
+    setSearched(true)
+    timerRef.current = setTimeout(() => doSearch(val.trim()), 380)
+  }
+
+  async function doSearch(q: string) {
+    try {
+      const data = await apiFetch<SearchResult>('/search/tv', { query: q, include_adult: 'false' })
+      setResults(data.results?.slice(0, 20) ?? [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div>
+      <header className="sticky top-0 z-40 glass shadow-[0px_8px_32px_rgba(0,0,0,0.5)]">
+        <div className="flex items-center gap-3 px-5 h-14 max-w-md mx-auto">
+          <Link href="/" className="p-1.5 hover:bg-surface-container-high rounded-full">
+            <span className="material-symbols-outlined text-on-surface-variant" style={{fontSize:20}}>arrow_back_ios_new</span>
+          </Link>
+          <div className="flex-1 flex items-center gap-2 bg-surface-container-lowest rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary/30">
+            <span className="material-symbols-outlined text-outline" style={{fontSize:18}}>search</span>
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              placeholder="Search TV shows..."
+              className="flex-1 bg-transparent text-on-surface text-sm placeholder:text-outline outline-none font-body"
+              onChange={e => handleInput(e.target.value)}
+            />
+            {query && (
+              <button onClick={() => handleInput('')}>
+                <span className="material-symbols-outlined text-outline" style={{fontSize:16}}>close</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="px-5 pt-5">
+        {!searched ? (
+          <div>
+            <p className="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant font-label mb-3">Trending Searches</p>
+            <div className="flex flex-wrap gap-2">
+              {TRENDING_TAGS.map(tag => (
+                <button
+                  key={tag}
+                  onClick={() => handleInput(tag)}
+                  className="px-3 py-1.5 bg-surface-container-high text-on-surface-variant text-xs font-label rounded-full hover:bg-surface-container-highest transition-colors"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : loading ? (
+          <div className="space-y-3">
+            {[...Array(5)].map((_, i) => <div key={i} className="skeleton h-20" />)}
+          </div>
+        ) : results.length === 0 ? (
+          <div className="text-center py-16">
+            <span className="material-symbols-outlined text-outline text-5xl">search_off</span>
+            <p className="text-on-surface-variant font-label text-sm mt-3">No results for &ldquo;{query}&rdquo;</p>
+          </div>
+        ) : (
+          <div className="space-y-2 fade-in">
+            {results.map(show => {
+              const poster = IMG.poster(show.poster_path)
+              const genre = show.genre_ids?.[0] ? GENRE_MAP[show.genre_ids[0]] : ''
+              const year = (show.first_air_date || '').slice(0, 4)
+              return (
+                <Link key={show.id} href={`/show/${show.id}`}
+                  className="flex gap-3 p-3 bg-surface-container-low rounded-xl hover:bg-surface-container-high transition-colors active:scale-[0.98]">
+                  <div className="relative w-12 h-16 rounded-lg overflow-hidden bg-surface-container-high flex-none">
+                    {poster
+                      ? <Image src={poster} alt={show.name} fill className="object-cover" sizes="48px"/>
+                      : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-outline" style={{fontSize:18}}>movie</span></div>}
+                  </div>
+                  <div className="flex-1 min-w-0 py-0.5">
+                    <p className="font-headline font-semibold text-on-surface text-sm truncate">{show.name}</p>
+                    <p className="text-[11px] text-on-surface-variant font-label mt-0.5">{[year, genre].filter(Boolean).join(' · ')}</p>
+                    {show.vote_average > 0 && (
+                      <div className="flex items-center gap-1 mt-1.5">
+                        <span className="material-symbols-outlined fill-icon text-tertiary" style={{fontSize:11}}>star</span>
+                        <span className="text-[11px] font-bold font-headline text-on-surface">{show.vote_average.toFixed(1)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="material-symbols-outlined text-on-surface-variant self-center flex-none" style={{fontSize:18}}>chevron_right</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
