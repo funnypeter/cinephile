@@ -12,7 +12,7 @@ export default function SearchPage() {
   const [results, setResults] = useState<TVShow[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   function handleInput(val: string) {
     setQuery(val)
