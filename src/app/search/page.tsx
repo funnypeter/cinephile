@@ -75,30 +75,19 @@ export default function SearchPage() {
 
       setDebugInfo(`history: ${history.length} | logged-skip: ${skippedLogged} | unique shows: ${showEpisodes.size} | diary: ${diary.length}`)
 
+      // Every show with watched episodes that isn't logged = suggestion
       const candidates: Suggestion[] = []
-      const debugRejects: string[] = []
-      for (const [tmdbId, { show, episodes }] of showEpisodes) {
+      for (const [tmdbId, { show }] of showEpisodes) {
         try {
           const detail = await apiFetch<TVShow>(`/tv/${tmdbId}`)
-          const totalSeasons = detail.number_of_seasons ?? 0
-          if (totalSeasons === 0) { debugRejects.push(`${show.title}: 0 seasons`); continue }
-          const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
-          const today = new Date().toISOString().slice(0, 10)
-          const airedEps = (latestSeason?.episodes ?? [])
-            .filter((ep: any) => ep.air_date && ep.air_date <= today)
-            .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
-          const last3 = airedEps.slice(-3)
-          const match = last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))
-          if (match) {
-            candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
-          } else {
-            debugRejects.push(`${show.title}: last3aired=[${last3.map((e: any) => `${e.season}x${e.number}`)}] watched=[${Array.from(episodes).slice(0,5)}]`)
-          }
-        } catch (e) { debugRejects.push(`${show.title}: error ${e}`) }
+          candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
+        } catch {
+          candidates.push({ id: tmdbId, name: show.title, poster: null, year: String(show.year ?? '') })
+        }
         if (candidates.length >= 8) break
       }
 
-      setDebugInfo(`shows: ${showEpisodes.size} | candidates: ${candidates.length} | rejects: ${debugRejects.join(' // ')}`)
+      setDebugInfo(`shows: ${showEpisodes.size} | candidates: ${candidates.length} | diary: ${diary.length} | skipped-logged: ${skippedLogged}`)
 
       setCachedSuggestions(candidates)
       setSuggestions(candidates)
