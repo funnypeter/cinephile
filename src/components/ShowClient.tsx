@@ -203,7 +203,7 @@ export default function ShowClient({ show }: Props) {
                           </p>
                         </div>
                         {watched && (
-                          <span className="text-[9px] text-primary font-bold font-label uppercase tracking-wide flex-none">Watched</span>
+                          <span className="material-symbols-outlined fill-icon text-primary flex-none" style={{fontSize:20}}>check_circle</span>
                         )}
                       </div>
                     )
