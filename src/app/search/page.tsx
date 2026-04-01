@@ -60,9 +60,11 @@ export default function SearchPage() {
       if (!history || !Array.isArray(history)) { setLoadingSuggestions(false); return }
 
       const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
+      let skippedLogged = 0
       for (const item of history) {
         const tmdbId = item.show?.ids?.tmdb
-        if (!tmdbId || loggedIds.has(tmdbId)) continue
+        if (!tmdbId) continue
+        if (loggedIds.has(tmdbId)) { skippedLogged++; continue }
         if (!showEpisodes.has(tmdbId)) {
           showEpisodes.set(tmdbId, { show: item.show, episodes: new Set() })
         }
@@ -71,22 +73,31 @@ export default function SearchPage() {
         if (s != null && e != null) showEpisodes.get(tmdbId)!.episodes.add(`${s}x${e}`)
       }
 
+      setDebugInfo(`history: ${history.length} | logged-skip: ${skippedLogged} | unique shows: ${showEpisodes.size} | diary: ${diary.length}`)
+
       const candidates: Suggestion[] = []
+      const debugRejects: string[] = []
       for (const [tmdbId, { show, episodes }] of showEpisodes) {
         try {
           const detail = await apiFetch<TVShow>(`/tv/${tmdbId}`)
           const totalSeasons = detail.number_of_seasons ?? 0
-          if (totalSeasons === 0) continue
+          if (totalSeasons === 0) { debugRejects.push(`${show.title}: 0 seasons`); continue }
           const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
           const allEps = (latestSeason?.episodes ?? [])
             .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
           const last3 = allEps.slice(-3)
-          if (last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))) {
+          const watched = Array.from(episodes)
+          const match = last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))
+          if (match) {
             candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
+          } else {
+            debugRejects.push(`${show.title}: last3=[${last3.map((e: any) => `${e.season}x${e.number}`)}] watched=[${watched.slice(0,5)}]`)
           }
-        } catch {}
+        } catch (e) { debugRejects.push(`${show.title}: error ${e}`) }
         if (candidates.length >= 8) break
       }
+
+      setDebugInfo(`shows: ${showEpisodes.size} | candidates: ${candidates.length} | rejects: ${debugRejects.join(' // ')}`)
 
       setCachedSuggestions(candidates)
       setSuggestions(candidates)
