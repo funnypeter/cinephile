@@ -13,13 +13,13 @@ interface Suggestion { id: number; name: string; poster: string | null; year: st
 
 // Module-level cache — survives component remounts
 let cachedSuggestions: Suggestion[] | null = null
-let fetchingInProgress = false
+let fetchPromise: Promise<Suggestion[]> | null = null
 
 async function fetchSuggestions(): Promise<Suggestion[]> {
   if (cachedSuggestions) return cachedSuggestions
-  if (fetchingInProgress) return []
-  fetchingInProgress = true
+  if (fetchPromise) return fetchPromise
 
+  fetchPromise = (async () => {
   try {
     const { trakt, diary } = useStore.getState()
     if (!trakt.connected) return []
@@ -61,9 +61,12 @@ async function fetchSuggestions(): Promise<Suggestion[]> {
 
     cachedSuggestions = candidates
     return candidates
-  } finally {
-    fetchingInProgress = false
+  } catch {
+    return []
   }
+  })()
+
+  return fetchPromise
 }
 
 export default function SearchPage() {
