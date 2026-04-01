@@ -1,43 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { decrypt } from '@/lib/trakt-crypto'
+import { TRAKT_HEADERS } from '@/lib/trakt-headers'
 
 export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
-  const clientId = process.env.TRAKT_CLIENT_ID
-  const clientSecret = process.env.TRAKT_CLIENT_SECRET
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
+  const cookie = req.cookies.get('trakt_session')?.value
+  if (!cookie) return NextResponse.json({ error: 'not connected' })
 
-  // Test the token endpoint with a fake code to see what we get back
-  const res = await fetch('https://api.trakt.tv/oauth/token', {
-    method: 'POST',
+  const raw = decrypt(cookie)
+  if (!raw) return NextResponse.json({ error: 'invalid session' })
+
+  const session = JSON.parse(raw)
+  const clientId = process.env.TRAKT_CLIENT_ID!
+
+  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+
+  // Try episodes history
+  const epRes = await fetch(`https://api.trakt.tv/users/me/history/episodes?start_at=${twoWeeksAgo}&limit=10`, {
     headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
-      'Accept-Language': 'en-US,en;q=0.9',
+      ...TRAKT_HEADERS,
+      'trakt-api-version': '2',
+      'trakt-api-key': clientId,
+      'Authorization': `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({
-      code: 'debug_test',
-      client_id: clientId,
-      client_secret: clientSecret,
-      redirect_uri: `${baseUrl}/api/trakt/callback`,
-      grant_type: 'authorization_code',
-    }),
   })
+  const epBody = epRes.ok ? await epRes.json() : await epRes.text()
 
-  const contentType = res.headers.get('content-type')
-  const body = await res.text()
+  // Try shows history
+  const showRes = await fetch(`https://api.trakt.tv/users/me/history/shows?start_at=${twoWeeksAgo}&limit=10`, {
+    headers: {
+      ...TRAKT_HEADERS,
+      'trakt-api-version': '2',
+      'trakt-api-key': clientId,
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+  })
+  const showBody = showRes.ok ? await showRes.json() : await showRes.text()
+
+  // Try all history
+  const allRes = await fetch(`https://api.trakt.tv/users/me/history?limit=10`, {
+    headers: {
+      ...TRAKT_HEADERS,
+      'trakt-api-version': '2',
+      'trakt-api-key': clientId,
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+  })
+  const allBody = allRes.ok ? await allRes.json() : await allRes.text()
 
   return NextResponse.json({
-    env: {
-      hasClientId: !!clientId,
-      hasClientSecret: !!clientSecret,
-      baseUrl,
-    },
-    response: {
-      status: res.status,
-      contentType,
-      bodyPreview: body.slice(0, 300),
-    },
+    username: session.username,
+    episodes: { status: epRes.status, count: Array.isArray(epBody) ? epBody.length : 'not array', preview: JSON.stringify(epBody).slice(0, 500) },
+    shows: { status: showRes.status, count: Array.isArray(showBody) ? showBody.length : 'not array', preview: JSON.stringify(showBody).slice(0, 500) },
+    all: { status: allRes.status, count: Array.isArray(allBody) ? allBody.length : 'not array', preview: JSON.stringify(allBody).slice(0, 500) },
   })
 }
