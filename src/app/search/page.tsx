@@ -83,15 +83,16 @@ export default function SearchPage() {
           const totalSeasons = detail.number_of_seasons ?? 0
           if (totalSeasons === 0) { debugRejects.push(`${show.title}: 0 seasons`); continue }
           const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
-          const allEps = (latestSeason?.episodes ?? [])
+          const today = new Date().toISOString().slice(0, 10)
+          const airedEps = (latestSeason?.episodes ?? [])
+            .filter((ep: any) => ep.air_date && ep.air_date <= today)
             .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
-          const last3 = allEps.slice(-3)
-          const watched = Array.from(episodes)
+          const last3 = airedEps.slice(-3)
           const match = last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))
           if (match) {
             candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
           } else {
-            debugRejects.push(`${show.title}: last3=[${last3.map((e: any) => `${e.season}x${e.number}`)}] watched=[${watched.slice(0,5)}]`)
+            debugRejects.push(`${show.title}: last3aired=[${last3.map((e: any) => `${e.season}x${e.number}`)}] watched=[${Array.from(episodes).slice(0,5)}]`)
           }
         } catch (e) { debugRejects.push(`${show.title}: error ${e}`) }
         if (candidates.length >= 8) break
