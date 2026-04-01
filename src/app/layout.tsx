@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { Space_Grotesk, Inter } from 'next/font/google'
 import './globals.css'
 import BottomNav from '@/components/BottomNav'
-import StoreHydration from '@/components/StoreHydration'
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -30,7 +29,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="bg-surface text-on-surface font-body min-h-dvh overflow-x-hidden">
-        <StoreHydration />
         <main className="pb-20 max-w-md mx-auto">
           {children}
         </main>

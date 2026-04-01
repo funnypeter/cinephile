@@ -1,6 +1,6 @@
 'use client'
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { DiaryEntry, WatchlistItem } from './types'
 
 interface Store {
@@ -45,6 +45,9 @@ export const useStore = create<Store>()(
         return { watched: diary.length, avgRating: avg, watchlistCount: watchlist.length }
       },
     }),
-    { name: 'cinephile-store', skipHydration: true }
+    {
+      name: 'cinephile-store',
+      storage: createJSONStorage(() => localStorage),
+    }
   )
 )
