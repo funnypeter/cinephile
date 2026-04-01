@@ -148,7 +148,11 @@ export default function SearchPage() {
       </header>
 
       <div className="px-5 pt-5">
-        {/* Suggestions from Trakt — always visible when not searching */}
+        {/* Debug */}
+        <div className="mb-3 p-2 bg-surface-container-high rounded text-[10px] font-mono text-on-surface-variant">
+          suggestions: {suggestions.length} | loading: {String(loadingSuggestions)} | searched: {String(searched)} | cache: {getCachedSuggestions()?.length ?? 'null'}
+        </div>
+
         {suggestions.length > 0 && (
           <div className="mb-6">
             <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched — Add to Watchlist?</p>
