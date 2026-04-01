@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useStore } from '@/lib/store'
@@ -21,47 +21,72 @@ export default function SearchPage() {
   const diary = useStore((s) => s.diary)
   const addDiaryEntry = useStore((s) => s.addDiaryEntry)
   const traktConnected = useStore((s) => s.trakt.connected)
-  // Snapshot of logged IDs at mount time — so Trakt sync doesn't remove suggestions
-  const initialLoggedIds = useMemo(() => new Set(diary.map((d) => d.showId)), []) // eslint-disable-line react-hooks/exhaustive-deps
   const loggedShowIds = new Set(diary.map((d) => d.showId))
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
+  const fetchedRef = useRef(false)
 
-  // Fetch suggestions on mount
+  // Fetch suggestions: shows where one of the last 3 episodes is watched, but show isn't logged
   useEffect(() => {
-    if (!traktConnected) return
+    if (!traktConnected || fetchedRef.current) return
+    fetchedRef.current = true
     setLoadingSuggestions(true)
-    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
 
+    const currentLoggedIds = new Set(useStore.getState().diary.map((d) => d.showId))
+
+    // Get recent episode watches (last 100 to cover multiple shows)
     traktFetch<any[]>('/users/me/history/episodes', {
-      params: { start_at: twoWeeksAgo, limit: '50' },
+      params: { limit: '100' },
     }).then(async (history) => {
-      if (!history) { setLoadingSuggestions(false); return }
+      if (!history || !Array.isArray(history)) return
 
-      const showMap = new Map<number, Suggestion>()
+      // Group watched episodes by show
+      const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
       for (const item of history) {
         const tmdbId = item.show?.ids?.tmdb
-        if (!tmdbId || initialLoggedIds.has(tmdbId) || showMap.has(tmdbId)) continue
-        showMap.set(tmdbId, {
-          id: tmdbId,
-          name: item.show.title,
-          poster: null,
-          year: String(item.show.year ?? ''),
-        })
+        if (!tmdbId || currentLoggedIds.has(tmdbId)) continue
+        if (!showEpisodes.has(tmdbId)) {
+          showEpisodes.set(tmdbId, { show: item.show, episodes: new Set() })
+        }
+        const s = item.episode?.season
+        const e = item.episode?.number
+        if (s != null && e != null) {
+          showEpisodes.get(tmdbId)!.episodes.add(`${s}x${e}`)
+        }
       }
 
-      const shows = Array.from(showMap.values()).slice(0, 8)
-      const withPosters = await Promise.all(
-        shows.map(async (s) => {
-          try {
-            const detail = await apiFetch<TVShow>(`/tv/${s.id}`)
-            return { ...s, poster: detail.poster_path }
-          } catch { return s }
-        })
-      )
-      setSuggestions(withPosters)
+      // For each show, check if any of the last 3 episodes were watched
+      const candidates: Suggestion[] = []
+      for (const [tmdbId, { show, episodes }] of showEpisodes) {
+        try {
+          const detail = await apiFetch<TVShow>(`/tv/${tmdbId}`)
+          const totalSeasons = detail.number_of_seasons ?? 0
+          if (totalSeasons === 0) continue
+
+          // Get the latest season's episodes
+          const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
+          const allEps: { season: number; number: number }[] = (latestSeason?.episodes ?? [])
+            .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
+
+          // Last 3 episodes
+          const last3 = allEps.slice(-3)
+          const watchedRecent = last3.some((ep) => episodes.has(`${ep.season}x${ep.number}`))
+
+          if (watchedRecent) {
+            candidates.push({
+              id: tmdbId,
+              name: show.title,
+              poster: detail.poster_path,
+              year: String(show.year ?? ''),
+            })
+          }
+        } catch { /* skip */ }
+        if (candidates.length >= 8) break
+      }
+
+      setSuggestions(candidates)
     }).catch(() => {}).finally(() => setLoadingSuggestions(false))
   }, [traktConnected]) // eslint-disable-line react-hooks/exhaustive-deps
 
