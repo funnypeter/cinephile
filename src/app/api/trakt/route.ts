@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decrypt, encrypt } from '@/lib/trakt-crypto'
 
+export const runtime = 'nodejs'
+
 const TRAKT_BASE = 'https://api.trakt.tv'
 
 async function getSession(req: NextRequest) {

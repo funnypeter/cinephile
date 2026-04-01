@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decrypt } from '@/lib/trakt-crypto'
 
+export const runtime = 'nodejs'
+
 export async function GET(req: NextRequest) {
   const cookie = req.cookies.get('trakt_session')?.value
   if (!cookie) return NextResponse.json({ connected: false })
