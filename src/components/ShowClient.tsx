@@ -61,8 +61,7 @@ export default function ShowClient({ show }: Props) {
   }
 
   function isEpisodeWatched(seasonNum: number, epNum: number) {
-    if (watchedEpisodes.size > 0) return watchedEpisodes.has(`${seasonNum}x${epNum}`)
-    return isLogged
+    return watchedEpisodes.has(`${seasonNum}x${epNum}`)
   }
 
   return (
