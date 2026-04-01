@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useStore } from '@/lib/store'
@@ -21,6 +21,8 @@ export default function SearchPage() {
   const diary = useStore((s) => s.diary)
   const addDiaryEntry = useStore((s) => s.addDiaryEntry)
   const traktConnected = useStore((s) => s.trakt.connected)
+  // Snapshot of logged IDs at mount time — so Trakt sync doesn't remove suggestions
+  const initialLoggedIds = useMemo(() => new Set(diary.map((d) => d.showId)), []) // eslint-disable-line react-hooks/exhaustive-deps
   const loggedShowIds = new Set(diary.map((d) => d.showId))
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
@@ -41,7 +43,7 @@ export default function SearchPage() {
       const showMap = new Map<number, Suggestion>()
       for (const item of history) {
         const tmdbId = item.show?.ids?.tmdb
-        if (!tmdbId || loggedShowIds.has(tmdbId) || showMap.has(tmdbId)) continue
+        if (!tmdbId || initialLoggedIds.has(tmdbId) || showMap.has(tmdbId)) continue
         showMap.set(tmdbId, {
           id: tmdbId,
           name: item.show.title,
@@ -123,14 +125,6 @@ export default function SearchPage() {
 
       <div className="px-5 pt-5">
         {/* Suggestions from Trakt — always visible when not searching */}
-        {/* Debug: remove after testing */}
-        {!searched && !traktConnected && (
-          <p className="text-[10px] text-on-surface-variant font-label mb-3">Trakt not connected — connect from Profile to see suggestions</p>
-        )}
-        {!searched && traktConnected && suggestions.length === 0 && !loadingSuggestions && (
-          <p className="text-[10px] text-on-surface-variant font-label mb-3">No recent unwatched shows found on Trakt</p>
-        )}
-
         {!searched && suggestions.length > 0 && (
           <div className="mb-6">
             <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched — Add to Watchlist?</p>
