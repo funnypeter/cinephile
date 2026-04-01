@@ -35,6 +35,7 @@ export default function SearchPage() {
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(true)
+  const [debugInfo, setDebugInfo] = useState('starting...')
 
   useEffect(() => {
     // Check sessionStorage first
@@ -42,17 +43,20 @@ export default function SearchPage() {
     if (cached && cached.length > 0) {
       setSuggestions(cached)
       setLoadingSuggestions(false)
+      setDebugInfo(`from cache: ${cached.length} items`)
       return
     }
 
     // Fetch from Trakt
     fetch('/api/trakt/status').then(r => r.json()).then(async (status) => {
-      if (!status.connected) { setLoadingSuggestions(false); return }
+      setDebugInfo(`status: ${JSON.stringify(status)}`)
+      if (!status.connected) { setLoadingSuggestions(false); setDebugInfo('not connected'); return }
 
       const { diary } = useStore.getState()
       const loggedIds = new Set(diary.map((d: any) => d.showId))
 
       const history = await traktFetch<any[]>('/users/me/history/episodes', { params: { limit: '100' } })
+      setDebugInfo(`history: ${history ? (Array.isArray(history) ? history.length + ' items' : typeof history) : 'null'}`)
       if (!history || !Array.isArray(history)) { setLoadingSuggestions(false); return }
 
       const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
@@ -150,7 +154,7 @@ export default function SearchPage() {
       <div className="px-5 pt-5">
         {/* Debug */}
         <div className="mb-3 p-2 bg-surface-container-high rounded text-[10px] font-mono text-on-surface-variant">
-          suggestions: {suggestions.length} | loading: {String(loadingSuggestions)} | searched: {String(searched)} | cache: {getCachedSuggestions()?.length ?? 'null'}
+          {debugInfo} | suggestions: {suggestions.length} | loading: {String(loadingSuggestions)}
         </div>
 
         {suggestions.length > 0 && (
