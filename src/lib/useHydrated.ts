@@ -1,7 +1,14 @@
-import { useState, useEffect } from 'react'
+'use client'
+import { useEffect, useState } from 'react'
+import { useStore } from './store'
 
-export function useHydrated() {
+export function useHydration() {
   const [hydrated, setHydrated] = useState(false)
-  useEffect(() => { setHydrated(true) }, [])
+
+  useEffect(() => {
+    useStore.persist.rehydrate()
+    setHydrated(true)
+  }, [])
+
   return hydrated
 }

@@ -45,6 +45,6 @@ export const useStore = create<Store>()(
         return { watched: diary.length, avgRating: avg, watchlistCount: watchlist.length }
       },
     }),
-    { name: 'cinephile-store' }
+    { name: 'cinephile-store', skipHydration: true }
   )
 )
