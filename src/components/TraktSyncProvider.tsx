@@ -1,19 +1,21 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useStore } from '@/lib/store'
 
 export default function TraktSyncProvider() {
-  const checkTraktStatus = useStore((s) => s.checkTraktStatus)
-  const syncWithTrakt = useStore((s) => s.syncWithTrakt)
-  const connected = useStore((s) => s.trakt.connected)
+  const ranRef = useRef(false)
 
   useEffect(() => {
+    if (ranRef.current) return
+    ranRef.current = true
+
+    const { checkTraktStatus, syncWithTrakt } = useStore.getState()
     checkTraktStatus().then(() => {
       if (useStore.getState().trakt.connected) {
         syncWithTrakt()
       }
     })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   return null
 }
