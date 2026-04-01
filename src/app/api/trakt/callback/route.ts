@@ -16,7 +16,8 @@ export async function GET(req: NextRequest) {
       return redirectWithMessage(req, 'error', 'missing_env')
     }
 
-    const redirectUri = `${req.nextUrl.origin}/api/trakt/callback`
+    const origin = process.env.NEXT_PUBLIC_BASE_URL || req.nextUrl.origin
+    const redirectUri = `${origin}/api/trakt/callback`
 
     const tokenRes = await fetch('https://api.trakt.tv/oauth/token', {
       method: 'POST',

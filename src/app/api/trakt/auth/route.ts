@@ -4,7 +4,7 @@ export async function GET(req: NextRequest) {
   const clientId = process.env.TRAKT_CLIENT_ID
   if (!clientId) return NextResponse.json({ error: 'TRAKT_CLIENT_ID not configured' }, { status: 500 })
 
-  const origin = req.nextUrl.origin
+  const origin = process.env.NEXT_PUBLIC_BASE_URL || req.nextUrl.origin
   const redirectUri = `${origin}/api/trakt/callback`
 
   const url = new URL('https://trakt.tv/oauth/authorize')
