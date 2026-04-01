@@ -35,7 +35,6 @@ export default function SearchPage() {
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(true)
-  const [debugInfo, setDebugInfo] = useState('starting...')
 
   useEffect(() => {
     // Check sessionStorage first
@@ -43,28 +42,24 @@ export default function SearchPage() {
     if (cached && cached.length > 0) {
       setSuggestions(cached)
       setLoadingSuggestions(false)
-      setDebugInfo(`from cache: ${cached.length} items`)
       return
     }
 
     // Fetch from Trakt
     fetch('/api/trakt/status').then(r => r.json()).then(async (status) => {
-      setDebugInfo(`status: ${JSON.stringify(status)}`)
-      if (!status.connected) { setLoadingSuggestions(false); setDebugInfo('not connected'); return }
+      if (!status.connected) { setLoadingSuggestions(false); return }
 
       const { diary } = useStore.getState()
       const loggedIds = new Set(diary.map((d: any) => d.showId))
 
       const history = await traktFetch<any[]>('/users/me/history/episodes', { params: { limit: '100' } })
-      setDebugInfo(`history: ${history ? (Array.isArray(history) ? history.length + ' items' : typeof history) : 'null'}`)
       if (!history || !Array.isArray(history)) { setLoadingSuggestions(false); return }
 
       const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
-      let skippedLogged = 0
       for (const item of history) {
         const tmdbId = item.show?.ids?.tmdb
         if (!tmdbId) continue
-        if (loggedIds.has(tmdbId)) { skippedLogged++; continue }
+        if (loggedIds.has(tmdbId)) continue
         if (!showEpisodes.has(tmdbId)) {
           showEpisodes.set(tmdbId, { show: item.show, episodes: new Set() })
         }
@@ -72,8 +67,6 @@ export default function SearchPage() {
         const e = item.episode?.number
         if (s != null && e != null) showEpisodes.get(tmdbId)!.episodes.add(`${s}x${e}`)
       }
-
-      setDebugInfo(`history: ${history.length} | logged-skip: ${skippedLogged} | unique shows: ${showEpisodes.size} | diary: ${diary.length}`)
 
       // Every show with watched episodes that isn't logged = suggestion
       const candidates: Suggestion[] = []
@@ -86,8 +79,6 @@ export default function SearchPage() {
         }
         if (candidates.length >= 8) break
       }
-
-      setDebugInfo(`shows: ${showEpisodes.size} | candidates: ${candidates.length} | diary: ${diary.length} | skipped-logged: ${skippedLogged}`)
 
       setCachedSuggestions(candidates)
       setSuggestions(candidates)
@@ -153,11 +144,6 @@ export default function SearchPage() {
       </header>
 
       <div className="px-5 pt-5">
-        {/* Debug */}
-        <div className="mb-3 p-2 bg-surface-container-high rounded text-[10px] font-mono text-on-surface-variant">
-          {debugInfo} | suggestions: {suggestions.length} | loading: {String(loadingSuggestions)}
-        </div>
-
         {suggestions.length > 0 && (
           <div className="mb-6">
             <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched — Add to Watchlist?</p>
