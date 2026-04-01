@@ -5,7 +5,6 @@ import Image from 'next/image'
 import { useStore, useWatchlist } from '@/lib/store'
 import { apiFetch, IMG, GENRE_MAP } from '@/lib/api'
 import type { TVShow, SearchResult } from '@/lib/types'
-import { traktFetch } from '@/lib/trakt-api'
 
 const GENRES = [
   { id: 'all', label: 'All' },
@@ -26,12 +25,6 @@ export default function HomeClient() {
   const [loadingPopular, setLoadingPopular] = useState(true)
   const watchlist = useWatchlist()
   const diary = useStore((s) => s.diary)
-  const addDiaryEntry = useStore((s) => s.addDiaryEntry)
-  const traktConnected = useStore((s) => s.trakt.connected)
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [suggestions, setSuggestions] = useState<{ id: number; name: string; poster: string | null; year: string }[]>([])
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
-  const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
 
   const ratings = diary.filter(d => d.rating > 0).map(d => d.rating)
   const avgRating = ratings.length
@@ -49,74 +42,6 @@ export default function HomeClient() {
       .catch(() => {})
       .finally(() => setLoadingPopular(false))
   }, [])
-
-  const loggedShowIds = new Set(diary.map((d) => d.showId))
-
-  async function handleAddShow() {
-    if (showSuggestions) { setShowSuggestions(false); return }
-    setShowSuggestions(true)
-    setLoadingSuggestions(true)
-    try {
-      const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
-
-      if (traktConnected) {
-        // Fetch recent episode watches from Trakt
-        const history = await traktFetch<any[]>('/users/me/history/episodes', {
-          params: { start_at: twoWeeksAgo, limit: '50' },
-        })
-        if (history) {
-          const showMap = new Map<number, { id: number; name: string; poster: string | null; year: string }>()
-          for (const item of history) {
-            const tmdbId = item.show?.ids?.tmdb
-            if (!tmdbId || loggedShowIds.has(tmdbId) || showMap.has(tmdbId)) continue
-            showMap.set(tmdbId, {
-              id: tmdbId,
-              name: item.show.title,
-              poster: null,
-              year: String(item.show.year ?? ''),
-            })
-          }
-          // Fetch posters from TMDB for each suggestion
-          const shows = Array.from(showMap.values())
-          const withPosters = await Promise.all(
-            shows.slice(0, 10).map(async (s) => {
-              try {
-                const detail = await apiFetch<TVShow>(`/tv/${s.id}`)
-                return { ...s, poster: detail.poster_path }
-              } catch { return s }
-            })
-          )
-          setSuggestions(withPosters)
-        }
-      } else {
-        // No Trakt — suggest from TMDB airing today, filtered by what's not logged
-        const data = await apiFetch<SearchResult>('/tv/on_the_air')
-        const filtered = (data.results ?? [])
-          .filter((s) => !loggedShowIds.has(s.id))
-          .slice(0, 10)
-          .map((s) => ({ id: s.id, name: s.name, poster: s.poster_path, year: (s.first_air_date || '').slice(0, 4) }))
-        setSuggestions(filtered)
-      }
-    } catch {
-      setSuggestions([])
-    } finally {
-      setLoadingSuggestions(false)
-    }
-  }
-
-  function handleToggleAdd(show: { id: number; name: string; poster: string | null; year: string }) {
-    if (addedIds.has(show.id)) return
-    addDiaryEntry({
-      showId: show.id,
-      showName: show.name,
-      poster: show.poster,
-      year: show.year,
-      rating: 0,
-      review: '',
-      spoiler: false,
-    })
-    setAddedIds((prev) => new Set(prev).add(show.id))
-  }
 
   async function handleGenre(id: string) {
     setSelectedGenre(id)
@@ -228,10 +153,10 @@ export default function HomeClient() {
           <Link href="/lists" className="text-primary text-xs font-bold font-headline uppercase tracking-wide">View All →</Link>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-3">
-          <button onClick={handleAddShow} className="flex-none flex flex-col items-center justify-center w-28 h-40 bg-surface-container-low rounded-2xl border border-dashed border-outline-variant gap-2">
-            <span className="material-symbols-outlined text-outline text-3xl">{showSuggestions ? 'close' : 'add'}</span>
-            <span className="text-[10px] text-outline font-label uppercase tracking-wide">{showSuggestions ? 'Close' : 'Add Show'}</span>
-          </button>
+          <Link href="/search" className="flex-none flex flex-col items-center justify-center w-28 h-40 bg-surface-container-low rounded-2xl border border-dashed border-outline-variant gap-2">
+            <span className="material-symbols-outlined text-outline text-3xl">add</span>
+            <span className="text-[10px] text-outline font-label uppercase tracking-wide">Add Show</span>
+          </Link>
           {watchlist.slice(0, 6).map(w => {
             const p = IMG.poster(w.poster)
             return (
@@ -244,54 +169,6 @@ export default function HomeClient() {
             )
           })}
         </div>
-
-        {/* Suggestions panel */}
-        {showSuggestions && (
-          <div className="mt-4 slide-up">
-            <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">
-              {traktConnected ? 'Recently Watched on Trakt' : 'Currently Airing'}
-            </p>
-            {loadingSuggestions ? (
-              <div className="space-y-2">
-                {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-14" />)}
-              </div>
-            ) : suggestions.length === 0 ? (
-              <p className="text-sm text-on-surface-variant font-label py-4 text-center">No new suggestions found</p>
-            ) : (
-              <div className="space-y-2">
-                {suggestions.map((s) => {
-                  const added = addedIds.has(s.id) || loggedShowIds.has(s.id)
-                  const p = IMG.poster(s.poster)
-                  return (
-                    <div key={s.id} className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl">
-                      <div className="w-10 h-14 rounded-lg overflow-hidden bg-surface-container-high flex-none">
-                        {p
-                          ? <Image src={p} alt={s.name} width={40} height={56} className="w-full h-full object-cover"/>
-                          : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-outline" style={{fontSize:14}}>movie</span></div>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-headline font-semibold text-on-surface truncate">{s.name}</p>
-                        <p className="text-[10px] text-on-surface-variant font-label">{s.year}</p>
-                      </div>
-                      <button
-                        onClick={() => handleToggleAdd(s)}
-                        disabled={added}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center flex-none transition-colors ${
-                          added
-                            ? 'bg-primary/20'
-                            : 'bg-surface-container-high active:scale-95'
-                        }`}>
-                        <span className={`material-symbols-outlined ${added ? 'fill-icon text-primary' : 'text-on-surface-variant'}`} style={{fontSize:20}}>
-                          {added ? 'check_circle' : 'add_circle'}
-                        </span>
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </section>
 
       <section className="px-5 pt-6 pb-8">

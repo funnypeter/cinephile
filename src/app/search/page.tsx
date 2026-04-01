@@ -1,11 +1,15 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useStore } from '@/lib/store'
 import { apiFetch, IMG, GENRE_MAP } from '@/lib/api'
+import { traktFetch } from '@/lib/trakt-api'
 import type { TVShow, SearchResult } from '@/lib/types'
 
 const TRENDING_TAGS = ['Breaking Bad','The Bear','Severance','Succession','House of the Dragon','The Last of Us','Shōgun','Andor','Silo','The Diplomat']
+
+interface Suggestion { id: number; name: string; poster: string | null; year: string }
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
@@ -13,6 +17,51 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const diary = useStore((s) => s.diary)
+  const addDiaryEntry = useStore((s) => s.addDiaryEntry)
+  const traktConnected = useStore((s) => s.trakt.connected)
+  const loggedShowIds = new Set(diary.map((d) => d.showId))
+
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+  const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
+
+  // Fetch suggestions on mount
+  useEffect(() => {
+    if (!traktConnected) return
+    setLoadingSuggestions(true)
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+
+    traktFetch<any[]>('/users/me/history/episodes', {
+      params: { start_at: twoWeeksAgo, limit: '50' },
+    }).then(async (history) => {
+      if (!history) { setLoadingSuggestions(false); return }
+
+      const showMap = new Map<number, Suggestion>()
+      for (const item of history) {
+        const tmdbId = item.show?.ids?.tmdb
+        if (!tmdbId || loggedShowIds.has(tmdbId) || showMap.has(tmdbId)) continue
+        showMap.set(tmdbId, {
+          id: tmdbId,
+          name: item.show.title,
+          poster: null,
+          year: String(item.show.year ?? ''),
+        })
+      }
+
+      const shows = Array.from(showMap.values()).slice(0, 8)
+      const withPosters = await Promise.all(
+        shows.map(async (s) => {
+          try {
+            const detail = await apiFetch<TVShow>(`/tv/${s.id}`)
+            return { ...s, poster: detail.poster_path }
+          } catch { return s }
+        })
+      )
+      setSuggestions(withPosters)
+    }).catch(() => {}).finally(() => setLoadingSuggestions(false))
+  }, [traktConnected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleInput(val: string) {
     setQuery(val)
@@ -30,6 +79,20 @@ export default function SearchPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleAdd(show: Suggestion) {
+    if (addedIds.has(show.id)) return
+    addDiaryEntry({
+      showId: show.id,
+      showName: show.name,
+      poster: show.poster,
+      year: show.year,
+      rating: 0,
+      review: '',
+      spoiler: false,
+    })
+    setAddedIds((prev) => new Set(prev).add(show.id))
   }
 
   return (
@@ -59,6 +122,53 @@ export default function SearchPage() {
       </header>
 
       <div className="px-5 pt-5">
+        {/* Suggestions from Trakt — always visible when not searching */}
+        {!searched && suggestions.length > 0 && (
+          <div className="mb-6">
+            <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched — Add to Watchlist?</p>
+            <div className="space-y-2">
+              {suggestions.map((s) => {
+                const added = addedIds.has(s.id) || loggedShowIds.has(s.id)
+                const p = IMG.poster(s.poster)
+                return (
+                  <div key={s.id} className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl">
+                    <Link href={`/show/${s.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="w-10 h-14 rounded-lg overflow-hidden bg-surface-container-high flex-none">
+                        {p
+                          ? <Image src={p} alt={s.name} width={40} height={56} className="w-full h-full object-cover"/>
+                          : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-outline" style={{fontSize:14}}>movie</span></div>}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-headline font-semibold text-on-surface truncate">{s.name}</p>
+                        <p className="text-[10px] text-on-surface-variant font-label">{s.year}</p>
+                      </div>
+                    </Link>
+                    <button
+                      onClick={() => handleAdd(s)}
+                      disabled={added}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-none transition-all ${
+                        added ? 'bg-primary/20' : 'bg-surface-container-high active:scale-90'
+                      }`}>
+                      <span className={`material-symbols-outlined ${added ? 'fill-icon text-primary' : 'text-on-surface-variant'}`} style={{fontSize:20}}>
+                        {added ? 'check_circle' : 'add_circle'}
+                      </span>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {!searched && loadingSuggestions && (
+          <div className="mb-6">
+            <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched</p>
+            <div className="space-y-2">
+              {[...Array(3)].map((_, i) => <div key={i} className="skeleton h-[68px]" />)}
+            </div>
+          </div>
+        )}
+
         {!searched ? (
           <div>
             <p className="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant font-label mb-3">Trending Searches</p>
