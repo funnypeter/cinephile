@@ -18,10 +18,8 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const diary = useStore((s) => s.diary)
   const addDiaryEntry = useStore((s) => s.addDiaryEntry)
   const traktConnected = useStore((s) => s.trakt.connected)
-  const loggedShowIds = new Set(diary.map((d) => d.showId))
 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
@@ -155,7 +153,7 @@ export default function SearchPage() {
             <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched — Add to Watchlist?</p>
             <div className="space-y-2">
               {suggestions.map((s) => {
-                const added = addedIds.has(s.id) || loggedShowIds.has(s.id)
+                const added = addedIds.has(s.id)
                 const p = IMG.poster(s.poster)
                 return (
                   <div key={s.id} className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl">
