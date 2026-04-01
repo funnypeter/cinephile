@@ -7,13 +7,13 @@ export async function GET(req: NextRequest) {
   try {
     const code = req.nextUrl.searchParams.get('code')
     if (!code) {
-      return NextResponse.redirect(new URL('/profile?trakt=error&reason=no_code', req.nextUrl.origin))
+      return redirectWithMessage(req, 'error', 'no_code')
     }
 
     const clientId = process.env.TRAKT_CLIENT_ID
     const clientSecret = process.env.TRAKT_CLIENT_SECRET
     if (!clientId || !clientSecret) {
-      return NextResponse.redirect(new URL('/profile?trakt=error&reason=missing_env', req.nextUrl.origin))
+      return redirectWithMessage(req, 'error', 'missing_env')
     }
 
     const redirectUri = `${req.nextUrl.origin}/api/trakt/callback`
@@ -32,9 +32,7 @@ export async function GET(req: NextRequest) {
 
     if (!tokenRes.ok) {
       const err = await tokenRes.text()
-      return NextResponse.redirect(
-        new URL(`/profile?trakt=error&reason=${encodeURIComponent(err.slice(0, 200))}`, req.nextUrl.origin)
-      )
+      return redirectWithMessage(req, 'error', err.slice(0, 100))
     }
 
     const tokens = await tokenRes.json()
@@ -57,19 +55,24 @@ export async function GET(req: NextRequest) {
       username: user?.username ?? 'unknown',
     }))
 
-    const response = NextResponse.redirect(new URL('/profile?trakt=connected', req.nextUrl.origin))
-    response.cookies.set('trakt_session', session, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 90 * 24 * 60 * 60,
-    })
+    // Return HTML page that sets cookie via Set-Cookie header and redirects client-side
+    // This avoids the Next.js/Vercel issue with cookies on redirect responses
+    const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/profile?trakt=connected"></head><body>Connecting...</body></html>`
 
-    return response
+    return new NextResponse(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html',
+        'Set-Cookie': `trakt_session=${session}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${90 * 24 * 60 * 60}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
+      },
+    })
   } catch (e) {
-    return NextResponse.redirect(
-      new URL(`/profile?trakt=error&reason=${encodeURIComponent(String(e).slice(0, 200))}`, req.nextUrl.origin)
-    )
+    return redirectWithMessage(req, 'error', String(e).slice(0, 100))
   }
+}
+
+function redirectWithMessage(req: NextRequest, status: string, reason: string) {
+  return NextResponse.redirect(
+    new URL(`/profile?trakt=${status}&reason=${encodeURIComponent(reason)}`, req.nextUrl.origin)
+  )
 }
