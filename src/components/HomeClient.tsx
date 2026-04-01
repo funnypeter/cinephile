@@ -180,7 +180,7 @@ export default function HomeClient() {
               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide font-label">Logged</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-headline font-bold text-on-surface">{Math.floor(liveDiary.length * 45 / 60)}h</p>
+              <p className="text-2xl font-headline font-bold text-on-surface">{Math.floor(diary.length * 45 / 60)}h</p>
               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide font-label">Runtime</p>
             </div>
             <div className="text-center">
