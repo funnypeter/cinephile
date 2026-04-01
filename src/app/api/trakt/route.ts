@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decrypt, encrypt } from '@/lib/trakt-crypto'
+import { TRAKT_HEADERS } from '@/lib/trakt-headers'
 
 export const runtime = 'nodejs'
 
@@ -21,7 +22,7 @@ async function getSession(req: NextRequest) {
 async function refreshToken(session: { refresh_token: string; username: string }) {
   const res = await fetch('https://api.trakt.tv/oauth/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'User-Agent': 'Cinephile/1.0' },
+    headers: { ...TRAKT_HEADERS },
     body: JSON.stringify({
       refresh_token: session.refresh_token,
       client_id: process.env.TRAKT_CLIENT_ID,
@@ -49,7 +50,6 @@ async function handleRequest(req: NextRequest, method: string) {
   const clientId = process.env.TRAKT_CLIENT_ID!
   let updatedCookie: string | null = null
 
-  // Refresh if expired
   if (Date.now() >= session.expires_at) {
     const refreshed = await refreshToken(session)
     if (!refreshed) {
@@ -69,8 +69,7 @@ async function handleRequest(req: NextRequest, method: string) {
   const fetchOptions: RequestInit = {
     method,
     headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Cinephile/1.0',
+      ...TRAKT_HEADERS,
       'trakt-api-version': '2',
       'trakt-api-key': clientId,
       'Authorization': `Bearer ${session.access_token}`,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { encrypt } from '@/lib/trakt-crypto'
+import { TRAKT_HEADERS } from '@/lib/trakt-headers'
 
 export const runtime = 'nodejs'
 
@@ -21,10 +22,7 @@ export async function GET(req: NextRequest) {
 
     const tokenRes = await fetch('https://api.trakt.tv/oauth/token', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Cinephile/1.0',
-      },
+      headers: { ...TRAKT_HEADERS },
       body: JSON.stringify({
         code,
         client_id: clientId,
@@ -41,11 +39,9 @@ export async function GET(req: NextRequest) {
 
     const tokens = await tokenRes.json()
 
-    // Fetch username
     const userRes = await fetch('https://api.trakt.tv/users/me', {
       headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Cinephile/1.0',
+        ...TRAKT_HEADERS,
         'trakt-api-version': '2',
         'trakt-api-key': clientId,
         'Authorization': `Bearer ${tokens.access_token}`,
@@ -60,8 +56,6 @@ export async function GET(req: NextRequest) {
       username: user?.username ?? 'unknown',
     }))
 
-    // Return HTML page that sets cookie via Set-Cookie header and redirects client-side
-    // This avoids the Next.js/Vercel issue with cookies on redirect responses
     const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/profile?trakt=connected"></head><body>Connecting...</body></html>`
 
     return new NextResponse(html, {
