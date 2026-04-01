@@ -123,6 +123,14 @@ export default function SearchPage() {
 
       <div className="px-5 pt-5">
         {/* Suggestions from Trakt — always visible when not searching */}
+        {/* Debug: remove after testing */}
+        {!searched && !traktConnected && (
+          <p className="text-[10px] text-on-surface-variant font-label mb-3">Trakt not connected — connect from Profile to see suggestions</p>
+        )}
+        {!searched && traktConnected && suggestions.length === 0 && !loadingSuggestions && (
+          <p className="text-[10px] text-on-surface-variant font-label mb-3">No recent unwatched shows found on Trakt</p>
+        )}
+
         {!searched && suggestions.length > 0 && (
           <div className="mb-6">
             <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched — Add to Watchlist?</p>
