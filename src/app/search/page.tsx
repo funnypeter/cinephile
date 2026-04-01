@@ -7,12 +7,64 @@ import { apiFetch, IMG, GENRE_MAP } from '@/lib/api'
 import { traktFetch } from '@/lib/trakt-api'
 import type { TVShow, SearchResult } from '@/lib/types'
 
-// Read store without subscribing to changes
-const getStore = () => useStore.getState()
-
 const TRENDING_TAGS = ['Breaking Bad','The Bear','Severance','Succession','House of the Dragon','The Last of Us','Shōgun','Andor','Silo','The Diplomat']
 
 interface Suggestion { id: number; name: string; poster: string | null; year: string }
+
+// Module-level cache — survives component remounts
+let cachedSuggestions: Suggestion[] | null = null
+let fetchingInProgress = false
+
+async function fetchSuggestions(): Promise<Suggestion[]> {
+  if (cachedSuggestions) return cachedSuggestions
+  if (fetchingInProgress) return []
+  fetchingInProgress = true
+
+  try {
+    const { trakt, diary } = useStore.getState()
+    if (!trakt.connected) return []
+
+    const loggedIds = new Set(diary.map((d) => d.showId))
+    const history = await traktFetch<any[]>('/users/me/history/episodes', { params: { limit: '100' } })
+    if (!history || !Array.isArray(history)) return []
+
+    const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
+    for (const item of history) {
+      const tmdbId = item.show?.ids?.tmdb
+      if (!tmdbId || loggedIds.has(tmdbId)) continue
+      if (!showEpisodes.has(tmdbId)) {
+        showEpisodes.set(tmdbId, { show: item.show, episodes: new Set() })
+      }
+      const s = item.episode?.season
+      const e = item.episode?.number
+      if (s != null && e != null) {
+        showEpisodes.get(tmdbId)!.episodes.add(`${s}x${e}`)
+      }
+    }
+
+    const candidates: Suggestion[] = []
+    for (const [tmdbId, { show, episodes }] of showEpisodes) {
+      try {
+        const detail = await apiFetch<TVShow>(`/tv/${tmdbId}`)
+        const totalSeasons = detail.number_of_seasons ?? 0
+        if (totalSeasons === 0) continue
+        const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
+        const allEps = (latestSeason?.episodes ?? [])
+          .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
+        const last3 = allEps.slice(-3)
+        if (last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))) {
+          candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
+        }
+      } catch { /* skip */ }
+      if (candidates.length >= 8) break
+    }
+
+    cachedSuggestions = candidates
+    return candidates
+  } finally {
+    fetchingInProgress = false
+  }
+}
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
@@ -22,53 +74,12 @@ export default function SearchPage() {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [loadingSuggestions, setLoadingSuggestions] = useState(true)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>(cachedSuggestions ?? [])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(!cachedSuggestions)
 
-  // Fetch suggestions once — no reactive store subscriptions
   useEffect(() => {
-    const { trakt, diary } = useStore.getState()
-    if (!trakt.connected) { setLoadingSuggestions(false); return }
-
-    const loggedIds = new Set(diary.map((d) => d.showId))
-
-    traktFetch<any[]>('/users/me/history/episodes', {
-      params: { limit: '100' },
-    }).then(async (history) => {
-      if (!history || !Array.isArray(history)) return
-
-      const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
-      for (const item of history) {
-        const tmdbId = item.show?.ids?.tmdb
-        if (!tmdbId || loggedIds.has(tmdbId)) continue
-        if (!showEpisodes.has(tmdbId)) {
-          showEpisodes.set(tmdbId, { show: item.show, episodes: new Set() })
-        }
-        const s = item.episode?.season
-        const e = item.episode?.number
-        if (s != null && e != null) {
-          showEpisodes.get(tmdbId)!.episodes.add(`${s}x${e}`)
-        }
-      }
-
-      const candidates: Suggestion[] = []
-      for (const [tmdbId, { show, episodes }] of showEpisodes) {
-        try {
-          const detail = await apiFetch<TVShow>(`/tv/${tmdbId}`)
-          const totalSeasons = detail.number_of_seasons ?? 0
-          if (totalSeasons === 0) continue
-          const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
-          const allEps = (latestSeason?.episodes ?? [])
-            .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
-          const last3 = allEps.slice(-3)
-          if (last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))) {
-            candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
-          }
-        } catch { /* skip */ }
-        if (candidates.length >= 8) break
-      }
-      setSuggestions(candidates)
-    }).catch(() => {}).finally(() => setLoadingSuggestions(false))
+    if (cachedSuggestions) { setSuggestions(cachedSuggestions); setLoadingSuggestions(false); return }
+    fetchSuggestions().then((s) => { setSuggestions(s); setLoadingSuggestions(false) })
   }, [])
 
   function handleInput(val: string) {
@@ -91,7 +102,7 @@ export default function SearchPage() {
 
   function handleAdd(show: Suggestion) {
     if (addedIds.has(show.id)) return
-    getStore().addDiaryEntry({
+    useStore.getState().addDiaryEntry({
       showId: show.id,
       showName: show.name,
       poster: show.poster,
