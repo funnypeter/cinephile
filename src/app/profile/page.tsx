@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useStore } from '@/lib/store'
+import { useStore, useWatchlist } from '@/lib/store'
 import { IMG } from '@/lib/api'
 
 export default function ProfilePage() {
-  const { watchlist, diary } = useStore()
+  const watchlist = useWatchlist()
+  const diary = useStore((s) => s.diary)
 
   const ratings = diary.filter(d => d.rating > 0).map(d => d.rating)
   const avgRating = ratings.length

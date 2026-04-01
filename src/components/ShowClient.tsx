@@ -3,7 +3,6 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useStore } from '@/lib/store'
 import { apiFetch, IMG } from '@/lib/api'
 import type { TVShow, Season } from '@/lib/types'
 
@@ -11,9 +10,6 @@ interface Props { show: TVShow }
 
 export default function ShowClient({ show }: Props) {
   const router = useRouter()
-  const addToWatchlist = useStore((s) => s.addToWatchlist)
-  const removeFromWatchlist = useStore((s) => s.removeFromWatchlist)
-  const inWatchlist = useStore((s) => s.watchlist.some((w) => w.id === show.id))
   const [activeSeason, setActiveSeason] = useState(1)
   const [season, setSeason] = useState<Season | null>(null)
   const [loadingEps, setLoadingEps] = useState(false)
@@ -36,19 +32,6 @@ export default function ShowClient({ show }: Props) {
   // Load season 1 on mount
   useState(() => { if (seasons > 0) loadSeason(1) })
 
-  function toggleWatchlist() {
-    if (inWatchlist) {
-      removeFromWatchlist(show.id)
-    } else {
-      addToWatchlist({
-        id: show.id,
-        name: show.name,
-        poster: show.poster_path,
-        year: (show.first_air_date || '').slice(0, 4),
-      })
-    }
-  }
-
   return (
     <div className="fade-in">
       {/* Header */}
@@ -58,9 +41,7 @@ export default function ShowClient({ show }: Props) {
             <span className="material-symbols-outlined text-on-surface" style={{fontSize:20}}>arrow_back_ios_new</span>
           </button>
           <span className="font-headline font-bold text-on-surface">Cinephile</span>
-          <button onClick={toggleWatchlist} className="p-2 hover:bg-surface-container-high rounded-full transition-colors">
-            <span className={`material-symbols-outlined ${inWatchlist ? 'fill-icon text-primary' : 'text-on-surface'}`} style={{fontSize:22}}>bookmark</span>
-          </button>
+          <div className="w-8" />
         </div>
       </header>
 
@@ -98,10 +79,6 @@ export default function ShowClient({ show }: Props) {
             <span className="material-symbols-outlined fill-icon" style={{fontSize:18}}>add_circle</span>
             Log This Show
           </Link>
-          <button onClick={toggleWatchlist}
-            className="w-11 h-11 bg-surface-container-high text-on-surface rounded-xl flex items-center justify-center active:scale-95 transition-transform">
-            <span className={`material-symbols-outlined ${inWatchlist ? 'fill-icon text-primary' : ''}`} style={{fontSize:20}}>bookmark</span>
-          </button>
         </div>
 
         <div className="px-5 space-y-8 mt-6">

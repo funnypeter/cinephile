@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useStore } from '@/lib/store'
+import { useStore, useWatchlist } from '@/lib/store'
 import { apiFetch, IMG, GENRE_MAP } from '@/lib/api'
 import type { TVShow, SearchResult } from '@/lib/types'
 
@@ -23,7 +23,7 @@ export default function HomeClient() {
   const [selectedGenre, setSelectedGenre] = useState('all')
   const [loadingTrending, setLoadingTrending] = useState(true)
   const [loadingPopular, setLoadingPopular] = useState(true)
-  const watchlist = useStore((s) => s.watchlist)
+  const watchlist = useWatchlist()
   const diary = useStore((s) => s.diary)
 
   const ratings = diary.filter(d => d.rating > 0).map(d => d.rating)
@@ -160,11 +160,11 @@ export default function HomeClient() {
           {watchlist.slice(0, 6).map(w => {
             const p = IMG.poster(w.poster)
             return (
-              <Link key={w.id} href={`/show/${w.id}`} className="flex-none w-28 group">
+              <Link key={w.showId} href={`/show/${w.showId}`} className="flex-none w-28 group">
                 <div className="relative w-28 h-40 rounded-2xl overflow-hidden bg-surface-container-high">
-                  {p ? <Image src={p} alt={w.name} fill className="object-cover" sizes="112px"/> : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-outline">movie</span></div>}
+                  {p ? <Image src={p} alt={w.showName} fill className="object-cover" sizes="112px"/> : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-outline">movie</span></div>}
                 </div>
-                <p className="mt-1 text-[10px] font-label text-on-surface-variant truncate">{w.name}</p>
+                <p className="mt-1 text-[10px] font-label text-on-surface-variant truncate">{w.showName}</p>
               </Link>
             )
           })}

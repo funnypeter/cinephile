@@ -53,10 +53,3 @@ export interface DiaryEntry {
   spoiler: boolean
   date: string
 }
-
-export interface WatchlistItem {
-  id: number
-  name: string
-  poster: string | null
-  year: string
-}

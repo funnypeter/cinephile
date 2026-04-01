@@ -1,13 +1,12 @@
 'use client'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useStore } from '@/lib/store'
+import { useStore, useWatchlist } from '@/lib/store'
 import { IMG } from '@/lib/api'
 
 export default function ListsPage() {
-  const watchlist = useStore((s) => s.watchlist)
+  const watchlist = useWatchlist()
   const diary = useStore((s) => s.diary)
-  const removeFromWatchlist = useStore((s) => s.removeFromWatchlist)
 
   return (
     <div>
@@ -29,8 +28,8 @@ export default function ListsPage() {
           </div>
           {watchlist.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 bg-surface-container-low rounded-2xl gap-3">
-              <span className="material-symbols-outlined text-outline text-4xl">bookmark</span>
-              <p className="text-sm text-on-surface-variant font-label">Nothing saved yet</p>
+              <span className="material-symbols-outlined text-outline text-4xl">movie</span>
+              <p className="text-sm text-on-surface-variant font-label">No shows logged yet</p>
               <Link href="/search" className="px-4 py-2 gradient-cta text-on-primary text-xs font-bold font-label rounded-full">
                 Discover Shows
               </Link>
@@ -45,20 +44,15 @@ export default function ListsPage() {
               {watchlist.map(w => {
                 const p = IMG.poster(w.poster)
                 return (
-                  <div key={w.id} className="relative group">
-                    <Link href={`/show/${w.id}`}>
+                  <div key={w.showId} className="relative group">
+                    <Link href={`/show/${w.showId}`}>
                       <div className="relative h-36 rounded-2xl overflow-hidden bg-surface-container-high">
                         {p
-                          ? <Image src={p} alt={w.name} fill className="object-cover group-hover:scale-105 transition-transform" sizes="33vw"/>
+                          ? <Image src={p} alt={w.showName} fill className="object-cover group-hover:scale-105 transition-transform" sizes="33vw"/>
                           : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-outline">movie</span></div>}
                       </div>
-                      <p className="mt-1 text-[10px] font-label text-on-surface-variant truncate">{w.name}</p>
+                      <p className="mt-1 text-[10px] font-label text-on-surface-variant truncate">{w.showName}</p>
                     </Link>
-                    <button
-                      onClick={() => removeFromWatchlist(w.id)}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 bg-surface/80 backdrop-blur rounded-full hidden group-hover:flex items-center justify-center">
-                      <span className="material-symbols-outlined text-on-surface" style={{fontSize:14}}>close</span>
-                    </button>
                   </div>
                 )
               })}
