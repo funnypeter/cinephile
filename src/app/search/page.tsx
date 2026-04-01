@@ -12,63 +12,17 @@ const TRENDING_TAGS = ['Breaking Bad','The Bear','Severance','Succession','House
 interface Suggestion { id: number; name: string; poster: string | null; year: string }
 
 // Module-level cache — survives component remounts
-let cachedSuggestions: Suggestion[] | null = null
-let fetchPromise: Promise<Suggestion[]> | null = null
+const SUGGESTIONS_KEY = 'cinephile-suggestions'
 
-async function fetchSuggestions(): Promise<Suggestion[]> {
-  if (cachedSuggestions) return cachedSuggestions
-  if (fetchPromise) return fetchPromise
-
-  fetchPromise = (async () => {
+function getCachedSuggestions(): Suggestion[] | null {
   try {
-    // Check connection via API directly — store might not have hydrated yet
-    const status = await fetch('/api/trakt/status').then(r => r.json()).catch(() => ({ connected: false }))
-    if (!status.connected) return []
+    const raw = sessionStorage.getItem(SUGGESTIONS_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
 
-    const { diary } = useStore.getState()
-    const loggedIds = new Set(diary.map((d) => d.showId))
-    const history = await traktFetch<any[]>('/users/me/history/episodes', { params: { limit: '100' } })
-    if (!history || !Array.isArray(history)) return []
-
-    const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
-    for (const item of history) {
-      const tmdbId = item.show?.ids?.tmdb
-      if (!tmdbId || loggedIds.has(tmdbId)) continue
-      if (!showEpisodes.has(tmdbId)) {
-        showEpisodes.set(tmdbId, { show: item.show, episodes: new Set() })
-      }
-      const s = item.episode?.season
-      const e = item.episode?.number
-      if (s != null && e != null) {
-        showEpisodes.get(tmdbId)!.episodes.add(`${s}x${e}`)
-      }
-    }
-
-    const candidates: Suggestion[] = []
-    for (const [tmdbId, { show, episodes }] of showEpisodes) {
-      try {
-        const detail = await apiFetch<TVShow>(`/tv/${tmdbId}`)
-        const totalSeasons = detail.number_of_seasons ?? 0
-        if (totalSeasons === 0) continue
-        const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
-        const allEps = (latestSeason?.episodes ?? [])
-          .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
-        const last3 = allEps.slice(-3)
-        if (last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))) {
-          candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
-        }
-      } catch { /* skip */ }
-      if (candidates.length >= 8) break
-    }
-
-    cachedSuggestions = candidates
-    return candidates
-  } catch {
-    return []
-  }
-  })()
-
-  return fetchPromise
+function setCachedSuggestions(s: Suggestion[]) {
+  try { sessionStorage.setItem(SUGGESTIONS_KEY, JSON.stringify(s)) } catch {}
 }
 
 export default function SearchPage() {
@@ -79,12 +33,61 @@ export default function SearchPage() {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
-  const [suggestions, setSuggestions] = useState<Suggestion[]>(cachedSuggestions ?? [])
-  const [loadingSuggestions, setLoadingSuggestions] = useState(!cachedSuggestions)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true)
 
   useEffect(() => {
-    if (cachedSuggestions) { setSuggestions(cachedSuggestions); setLoadingSuggestions(false); return }
-    fetchSuggestions().then((s) => { setSuggestions(s); setLoadingSuggestions(false) })
+    // Check sessionStorage first
+    const cached = getCachedSuggestions()
+    if (cached && cached.length > 0) {
+      setSuggestions(cached)
+      setLoadingSuggestions(false)
+      return
+    }
+
+    // Fetch from Trakt
+    fetch('/api/trakt/status').then(r => r.json()).then(async (status) => {
+      if (!status.connected) { setLoadingSuggestions(false); return }
+
+      const { diary } = useStore.getState()
+      const loggedIds = new Set(diary.map((d: any) => d.showId))
+
+      const history = await traktFetch<any[]>('/users/me/history/episodes', { params: { limit: '100' } })
+      if (!history || !Array.isArray(history)) { setLoadingSuggestions(false); return }
+
+      const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
+      for (const item of history) {
+        const tmdbId = item.show?.ids?.tmdb
+        if (!tmdbId || loggedIds.has(tmdbId)) continue
+        if (!showEpisodes.has(tmdbId)) {
+          showEpisodes.set(tmdbId, { show: item.show, episodes: new Set() })
+        }
+        const s = item.episode?.season
+        const e = item.episode?.number
+        if (s != null && e != null) showEpisodes.get(tmdbId)!.episodes.add(`${s}x${e}`)
+      }
+
+      const candidates: Suggestion[] = []
+      for (const [tmdbId, { show, episodes }] of showEpisodes) {
+        try {
+          const detail = await apiFetch<TVShow>(`/tv/${tmdbId}`)
+          const totalSeasons = detail.number_of_seasons ?? 0
+          if (totalSeasons === 0) continue
+          const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
+          const allEps = (latestSeason?.episodes ?? [])
+            .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
+          const last3 = allEps.slice(-3)
+          if (last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))) {
+            candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
+          }
+        } catch {}
+        if (candidates.length >= 8) break
+      }
+
+      setCachedSuggestions(candidates)
+      setSuggestions(candidates)
+      setLoadingSuggestions(false)
+    }).catch(() => setLoadingSuggestions(false))
   }, [])
 
   function handleInput(val: string) {
