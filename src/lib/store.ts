@@ -32,13 +32,6 @@ export const useStore = create<Store>()(
           date: entry.date ?? new Date().toISOString(),
         }
         set((s) => ({ diary: [newEntry, ...s.diary] }))
-
-        // Fire-and-forget push to Trakt if connected
-        if (get().trakt.connected) {
-          pushSingleEntry(newEntry, (id, patch) => {
-            get().updateDiaryEntry(id, patch)
-          }).catch(() => {})
-        }
       },
 
       updateDiaryEntry: (id, patch) =>
