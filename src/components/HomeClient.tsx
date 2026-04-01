@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useStore } from '@/lib/store'
-import { useHydrated } from '@/lib/useHydrated'
 import { apiFetch, IMG, GENRE_MAP } from '@/lib/api'
 import type { TVShow, SearchResult } from '@/lib/types'
 
@@ -24,13 +23,10 @@ export default function HomeClient() {
   const [selectedGenre, setSelectedGenre] = useState('all')
   const [loadingTrending, setLoadingTrending] = useState(true)
   const [loadingPopular, setLoadingPopular] = useState(true)
-  const { watchlist, diary } = useStore()
-  const hydrated = useHydrated()
+  const watchlist = useStore((s) => s.watchlist)
+  const diary = useStore((s) => s.diary)
 
-  const liveWatchlist = hydrated ? watchlist : []
-  const liveDiary = hydrated ? diary : []
-
-  const ratings = liveDiary.filter(d => d.rating > 0).map(d => d.rating)
+  const ratings = diary.filter(d => d.rating > 0).map(d => d.rating)
   const avgRating = ratings.length
     ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
     : null
@@ -161,7 +157,7 @@ export default function HomeClient() {
             <span className="material-symbols-outlined text-outline text-3xl">add</span>
             <span className="text-[10px] text-outline font-label uppercase tracking-wide">Add Show</span>
           </Link>
-          {liveWatchlist.slice(0, 6).map(w => {
+          {watchlist.slice(0, 6).map(w => {
             const p = IMG.poster(w.poster)
             return (
               <Link key={w.id} href={`/show/${w.id}`} className="flex-none w-28 group">
@@ -180,7 +176,7 @@ export default function HomeClient() {
           <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Your Week in TV</p>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-headline font-bold text-on-surface">{liveDiary.length}</p>
+              <p className="text-2xl font-headline font-bold text-on-surface">{diary.length}</p>
               <p className="text-[10px] text-on-surface-variant uppercase tracking-wide font-label">Logged</p>
             </div>
             <div className="text-center">

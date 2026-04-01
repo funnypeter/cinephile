@@ -11,8 +11,9 @@ interface Props { show: TVShow }
 
 export default function ShowClient({ show }: Props) {
   const router = useRouter()
-  const { addToWatchlist, removeFromWatchlist, isInWatchlist } = useStore()
-  const inWatchlist = isInWatchlist(show.id)
+  const addToWatchlist = useStore((s) => s.addToWatchlist)
+  const removeFromWatchlist = useStore((s) => s.removeFromWatchlist)
+  const inWatchlist = useStore((s) => s.watchlist.some((w) => w.id === show.id))
   const [activeSeason, setActiveSeason] = useState(1)
   const [season, setSeason] = useState<Season | null>(null)
   const [loadingEps, setLoadingEps] = useState(false)

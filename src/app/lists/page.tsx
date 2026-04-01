@@ -2,14 +2,12 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useStore } from '@/lib/store'
-import { useHydrated } from '@/lib/useHydrated'
 import { IMG } from '@/lib/api'
 
 export default function ListsPage() {
-  const { watchlist, diary, removeFromWatchlist } = useStore()
-  const hydrated = useHydrated()
-  const liveWatchlist = hydrated ? watchlist : []
-  const liveDiary = hydrated ? diary : []
+  const watchlist = useStore((s) => s.watchlist)
+  const diary = useStore((s) => s.diary)
+  const removeFromWatchlist = useStore((s) => s.removeFromWatchlist)
 
   return (
     <div>
@@ -27,9 +25,9 @@ export default function ListsPage() {
         <section>
           <div className="flex items-end justify-between mb-3">
             <h2 className="text-lg font-headline font-bold">Watchlist</h2>
-            <span className="text-xs text-on-surface-variant font-label">{liveWatchlist.length} show{liveWatchlist.length !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-on-surface-variant font-label">{watchlist.length} show{watchlist.length !== 1 ? 's' : ''}</span>
           </div>
-          {liveWatchlist.length === 0 ? (
+          {watchlist.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 bg-surface-container-low rounded-2xl gap-3">
               <span className="material-symbols-outlined text-outline text-4xl">bookmark</span>
               <p className="text-sm text-on-surface-variant font-label">Nothing saved yet</p>
@@ -44,7 +42,7 @@ export default function ListsPage() {
                 <span className="material-symbols-outlined text-outline text-2xl">add</span>
                 <span className="text-[10px] text-outline font-label uppercase tracking-wide">Add</span>
               </Link>
-              {liveWatchlist.map(w => {
+              {watchlist.map(w => {
                 const p = IMG.poster(w.poster)
                 return (
                   <div key={w.id} className="relative group">
@@ -72,9 +70,9 @@ export default function ListsPage() {
         <section className="pb-4">
           <div className="flex items-end justify-between mb-3">
             <h2 className="text-lg font-headline font-bold">Watch Diary</h2>
-            <span className="text-xs text-on-surface-variant font-label">{liveDiary.length} entr{liveDiary.length !== 1 ? 'ies' : 'y'}</span>
+            <span className="text-xs text-on-surface-variant font-label">{diary.length} entr{diary.length !== 1 ? 'ies' : 'y'}</span>
           </div>
-          {liveDiary.length === 0 ? (
+          {diary.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 bg-surface-container-low rounded-2xl gap-3">
               <span className="material-symbols-outlined text-outline text-4xl">menu_book</span>
               <p className="text-sm text-on-surface-variant font-label">No entries yet</p>
@@ -84,7 +82,7 @@ export default function ListsPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {liveDiary.map(entry => {
+              {diary.map(entry => {
                 const p = IMG.poster(entry.poster)
                 const date = new Date(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 return (
