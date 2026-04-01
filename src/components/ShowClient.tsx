@@ -41,14 +41,25 @@ export default function ShowClient({ show }: Props) {
   // Fetch watched episodes from Trakt
   useEffect(() => {
     if (!traktConnected) return
-    traktFetch<TraktHistoryItem[]>(`/users/me/history/shows/${show.id}`, {
-      params: { type: 'shows' },
-    }).then((history) => {
-      if (!history) return
+
+    // First look up the Trakt slug from TMDB ID
+    traktFetch<any[]>(`/search/tmdb/${show.id}`, {
+      params: { type: 'show' },
+    }).then(async (searchResults) => {
+      if (!searchResults || searchResults.length === 0) return
+      const traktSlug = searchResults[0]?.show?.ids?.slug
+      if (!traktSlug) return
+
+      // Fetch episode history for this show using Trakt slug
+      const history = await traktFetch<any[]>(`/users/me/history/shows/${traktSlug}`, {
+        params: { limit: '500' },
+      })
+      if (!history || !Array.isArray(history)) return
+
       const watched = new Set<string>()
       for (const item of history) {
-        if ('episode' in item && (item as any).episode) {
-          const ep = (item as any).episode
+        const ep = item.episode
+        if (ep?.season != null && ep?.number != null) {
           watched.add(`${ep.season}x${ep.number}`)
         }
       }
