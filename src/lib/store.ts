@@ -11,6 +11,7 @@ interface Store {
 
   addDiaryEntry: (entry: Omit<DiaryEntry, 'id' | 'date'> & { date?: string }) => void
   updateDiaryEntry: (id: string, patch: Partial<DiaryEntry>) => void
+  removeShowFromDiary: (showId: number) => void
 
   setTraktConnected: (username: string) => void
   setTraktDisconnected: () => void
@@ -43,6 +44,11 @@ export const useStore = create<Store>()(
       updateDiaryEntry: (id, patch) =>
         set((s) => ({
           diary: s.diary.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+        })),
+
+      removeShowFromDiary: (showId) =>
+        set((s) => ({
+          diary: s.diary.filter((d) => d.showId !== showId),
         })),
 
       setTraktConnected: (username) =>

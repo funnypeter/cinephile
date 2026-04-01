@@ -1,18 +1,24 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { useStore } from '@/lib/store'
 import { apiFetch, IMG } from '@/lib/api'
-import type { TVShow, Season } from '@/lib/types'
+import { traktFetch } from '@/lib/trakt-api'
+import type { TVShow, Season, TraktHistoryItem } from '@/lib/types'
 
 interface Props { show: TVShow }
 
 export default function ShowClient({ show }: Props) {
   const router = useRouter()
+  const isLogged = useStore((s) => s.diary.some((d) => d.showId === show.id))
+  const removeShowFromDiary = useStore((s) => s.removeShowFromDiary)
+  const traktConnected = useStore((s) => s.trakt.connected)
   const [activeSeason, setActiveSeason] = useState(1)
   const [season, setSeason] = useState<Season | null>(null)
   const [loadingEps, setLoadingEps] = useState(false)
+  const [watchedEpisodes, setWatchedEpisodes] = useState<Set<string>>(new Set())
 
   const backdrop = IMG.backdrop(show.backdrop_path) ?? IMG.poster(show.poster_path, 'w780')
   const cast = show.credits?.cast?.slice(0, 6) ?? []
@@ -31,6 +37,33 @@ export default function ShowClient({ show }: Props) {
 
   // Load season 1 on mount
   useState(() => { if (seasons > 0) loadSeason(1) })
+
+  // Fetch watched episodes from Trakt
+  useEffect(() => {
+    if (!traktConnected) return
+    traktFetch<TraktHistoryItem[]>(`/users/me/history/shows/${show.id}`, {
+      params: { type: 'shows' },
+    }).then((history) => {
+      if (!history) return
+      const watched = new Set<string>()
+      for (const item of history) {
+        if ('episode' in item && (item as any).episode) {
+          const ep = (item as any).episode
+          watched.add(`${ep.season}x${ep.number}`)
+        }
+      }
+      setWatchedEpisodes(watched)
+    }).catch(() => {})
+  }, [traktConnected, show.id])
+
+  function handleUnlog() {
+    removeShowFromDiary(show.id)
+  }
+
+  function isEpisodeWatched(seasonNum: number, epNum: number) {
+    if (watchedEpisodes.size > 0) return watchedEpisodes.has(`${seasonNum}x${epNum}`)
+    return isLogged
+  }
 
   return (
     <div className="fade-in">
@@ -74,11 +107,20 @@ export default function ShowClient({ show }: Props) {
 
         {/* CTAs */}
         <div className="px-5 pt-4 flex gap-3">
-          <Link href={`/log?id=${show.id}&name=${encodeURIComponent(show.name)}&poster=${encodeURIComponent(show.poster_path ?? '')}&year=${(show.first_air_date||'').slice(0,4)}`}
-            className="flex-1 h-11 gradient-cta text-on-primary font-headline font-bold rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-[0px_8px_20px_rgba(0,209,255,0.2)]">
-            <span className="material-symbols-outlined fill-icon" style={{fontSize:18}}>add_circle</span>
-            Log This Show
-          </Link>
+          {isLogged ? (
+            <button
+              onClick={handleUnlog}
+              className="flex-1 h-11 bg-surface-container-high text-on-surface font-headline font-bold rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform">
+              <span className="material-symbols-outlined fill-icon text-primary" style={{fontSize:18}}>check_circle</span>
+              Logged
+            </button>
+          ) : (
+            <Link href={`/log?id=${show.id}&name=${encodeURIComponent(show.name)}&poster=${encodeURIComponent(show.poster_path ?? '')}&year=${(show.first_air_date||'').slice(0,4)}`}
+              className="flex-1 h-11 gradient-cta text-on-primary font-headline font-bold rounded-xl text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-[0px_8px_20px_rgba(0,209,255,0.2)]">
+              <span className="material-symbols-outlined fill-icon" style={{fontSize:18}}>add_circle</span>
+              Log This Show
+            </Link>
+          )}
         </div>
 
         <div className="px-5 space-y-8 mt-6">
@@ -141,19 +183,28 @@ export default function ShowClient({ show }: Props) {
                 <div className="space-y-2">
                   {(season?.episodes ?? []).map(ep => {
                     const still = IMG.poster(ep.still_path)
+                    const watched = isEpisodeWatched(activeSeason, ep.episode_number)
                     return (
-                      <div key={ep.id} className="flex items-center gap-3 p-3 bg-surface-container-low rounded-xl">
-                        <div className="w-16 h-10 rounded-lg overflow-hidden bg-surface-container-high flex-none">
+                      <div key={ep.id} className={`flex items-center gap-3 p-3 rounded-xl ${watched ? 'bg-surface-container-low/80' : 'bg-surface-container-low'}`}>
+                        <div className="w-16 h-10 rounded-lg overflow-hidden bg-surface-container-high flex-none relative">
                           {still
-                            ? <Image src={still} alt={ep.name} width={64} height={40} className="w-full h-full object-cover"/>
+                            ? <Image src={still} alt={ep.name} width={64} height={40} className={`w-full h-full object-cover ${watched ? 'opacity-60' : ''}`}/>
                             : <div className="w-full h-full flex items-center justify-center"><span className="material-symbols-outlined text-outline" style={{fontSize:18}}>movie</span></div>}
+                          {watched && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="material-symbols-outlined fill-icon text-primary" style={{fontSize:16}}>check_circle</span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-headline font-semibold text-on-surface truncate">{ep.name || `Episode ${ep.episode_number}`}</p>
+                          <p className={`text-xs font-headline font-semibold truncate ${watched ? 'text-on-surface-variant' : 'text-on-surface'}`}>{ep.name || `Episode ${ep.episode_number}`}</p>
                           <p className="text-[10px] text-on-surface-variant font-label">
                             {ep.runtime ? `${ep.runtime}m · ` : ''}Ep {ep.episode_number}
                           </p>
                         </div>
+                        {watched && (
+                          <span className="text-[9px] text-primary font-bold font-label uppercase tracking-wide flex-none">Watched</span>
+                        )}
                       </div>
                     )
                   })}
