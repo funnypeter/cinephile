@@ -21,9 +21,11 @@ async function fetchSuggestions(): Promise<Suggestion[]> {
 
   fetchPromise = (async () => {
   try {
-    const { trakt, diary } = useStore.getState()
-    if (!trakt.connected) return []
+    // Check connection via API directly — store might not have hydrated yet
+    const status = await fetch('/api/trakt/status').then(r => r.json()).catch(() => ({ connected: false }))
+    if (!status.connected) return []
 
+    const { diary } = useStore.getState()
     const loggedIds = new Set(diary.map((d) => d.showId))
     const history = await traktFetch<any[]>('/users/me/history/episodes', { params: { limit: '100' } })
     if (!history || !Array.isArray(history)) return []
