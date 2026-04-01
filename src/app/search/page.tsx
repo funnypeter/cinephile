@@ -132,7 +132,6 @@ export default function SearchPage() {
           <div className="flex-1 flex items-center gap-2 bg-surface-container-lowest rounded-xl px-3 py-2 focus-within:ring-1 focus-within:ring-primary/30">
             <span className="material-symbols-outlined text-outline" style={{fontSize:18}}>search</span>
             <input
-              autoFocus
               type="text"
               value={query}
               placeholder="Search TV shows..."
@@ -150,7 +149,7 @@ export default function SearchPage() {
 
       <div className="px-5 pt-5">
         {/* Suggestions from Trakt — always visible when not searching */}
-        {!searched && suggestions.length > 0 && (
+        {suggestions.length > 0 && (
           <div className="mb-6">
             <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched — Add to Watchlist?</p>
             <div className="space-y-2">
@@ -187,7 +186,7 @@ export default function SearchPage() {
           </div>
         )}
 
-        {!searched && loadingSuggestions && (
+        {loadingSuggestions && (
           <div className="mb-6">
             <p className="text-[10px] font-bold tracking-widest uppercase text-primary font-label mb-3">Recently Watched</p>
             <div className="space-y-2">
