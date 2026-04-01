@@ -7,6 +7,9 @@ import { apiFetch, IMG, GENRE_MAP } from '@/lib/api'
 import { traktFetch } from '@/lib/trakt-api'
 import type { TVShow, SearchResult } from '@/lib/types'
 
+// Read store without subscribing to changes
+const getStore = () => useStore.getState()
+
 const TRENDING_TAGS = ['Breaking Bad','The Bear','Severance','Succession','House of the Dragon','The Last of Us','Shōgun','Andor','Silo','The Diplomat']
 
 interface Suggestion { id: number; name: string; poster: string | null; year: string }
@@ -18,33 +21,26 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const addDiaryEntry = useStore((s) => s.addDiaryEntry)
-  const traktConnected = useStore((s) => s.trakt.connected)
-
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
-  const fetchedRef = useRef(false)
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true)
 
-  // Fetch suggestions: shows where one of the last 3 episodes is watched, but show isn't logged
+  // Fetch suggestions once — no reactive store subscriptions
   useEffect(() => {
-    if (!traktConnected || fetchedRef.current) return
-    fetchedRef.current = true
-    setLoadingSuggestions(true)
+    const { trakt, diary } = useStore.getState()
+    if (!trakt.connected) { setLoadingSuggestions(false); return }
 
-    const currentLoggedIds = new Set(useStore.getState().diary.map((d) => d.showId))
+    const loggedIds = new Set(diary.map((d) => d.showId))
 
-    // Get recent episode watches (last 100 to cover multiple shows)
     traktFetch<any[]>('/users/me/history/episodes', {
       params: { limit: '100' },
     }).then(async (history) => {
       if (!history || !Array.isArray(history)) return
 
-      // Group watched episodes by show
       const showEpisodes = new Map<number, { show: any; episodes: Set<string> }>()
       for (const item of history) {
         const tmdbId = item.show?.ids?.tmdb
-        if (!tmdbId || currentLoggedIds.has(tmdbId)) continue
+        if (!tmdbId || loggedIds.has(tmdbId)) continue
         if (!showEpisodes.has(tmdbId)) {
           showEpisodes.set(tmdbId, { show: item.show, episodes: new Set() })
         }
@@ -55,38 +51,25 @@ export default function SearchPage() {
         }
       }
 
-      // For each show, check if any of the last 3 episodes were watched
       const candidates: Suggestion[] = []
       for (const [tmdbId, { show, episodes }] of showEpisodes) {
         try {
           const detail = await apiFetch<TVShow>(`/tv/${tmdbId}`)
           const totalSeasons = detail.number_of_seasons ?? 0
           if (totalSeasons === 0) continue
-
-          // Get the latest season's episodes
           const latestSeason = await apiFetch<any>(`/tv/${tmdbId}/season/${totalSeasons}`)
-          const allEps: { season: number; number: number }[] = (latestSeason?.episodes ?? [])
+          const allEps = (latestSeason?.episodes ?? [])
             .map((ep: any) => ({ season: totalSeasons, number: ep.episode_number }))
-
-          // Last 3 episodes
           const last3 = allEps.slice(-3)
-          const watchedRecent = last3.some((ep) => episodes.has(`${ep.season}x${ep.number}`))
-
-          if (watchedRecent) {
-            candidates.push({
-              id: tmdbId,
-              name: show.title,
-              poster: detail.poster_path,
-              year: String(show.year ?? ''),
-            })
+          if (last3.some((ep: any) => episodes.has(`${ep.season}x${ep.number}`))) {
+            candidates.push({ id: tmdbId, name: show.title, poster: detail.poster_path, year: String(show.year ?? '') })
           }
         } catch { /* skip */ }
         if (candidates.length >= 8) break
       }
-
       setSuggestions(candidates)
     }).catch(() => {}).finally(() => setLoadingSuggestions(false))
-  }, [traktConnected]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleInput(val: string) {
     setQuery(val)
@@ -108,7 +91,7 @@ export default function SearchPage() {
 
   function handleAdd(show: Suggestion) {
     if (addedIds.has(show.id)) return
-    addDiaryEntry({
+    getStore().addDiaryEntry({
       showId: show.id,
       showName: show.name,
       poster: show.poster,
