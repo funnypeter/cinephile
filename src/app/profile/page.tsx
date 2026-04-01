@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useStore, useWatchlist } from '@/lib/store'
 import { IMG } from '@/lib/api'
+import TraktConnectCard from '@/components/TraktConnectCard'
 
 export default function ProfilePage() {
   const watchlist = useWatchlist()
@@ -67,6 +68,9 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
+
+        {/* Trakt Integration */}
+        <TraktConnectCard />
 
         {/* Recent activity */}
         <section className="pb-6">

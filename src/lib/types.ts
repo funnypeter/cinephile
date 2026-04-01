@@ -61,4 +61,35 @@ export interface DiaryEntry {
   review: string
   spoiler: boolean
   date: string
+  traktHistoryId?: number
+  traktSyncedAt?: string
+}
+
+export interface TraktSyncState {
+  connected: boolean
+  username?: string
+  lastFullSync?: string
+  syncInProgress: boolean
+  syncError?: string
+}
+
+export interface TraktHistoryItem {
+  id: number
+  watched_at: string
+  action: string
+  show: {
+    title: string
+    year: number
+    ids: { trakt: number; slug: string; tvdb?: number; imdb?: string; tmdb: number }
+  }
+}
+
+export interface TraktRatingItem {
+  rated_at: string
+  rating: number
+  show: {
+    title: string
+    year: number
+    ids: { trakt: number; tmdb: number }
+  }
 }
