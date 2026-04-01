@@ -8,13 +8,8 @@ export default function TraktSyncProvider() {
   useEffect(() => {
     if (ranRef.current) return
     ranRef.current = true
-
-    const { checkTraktStatus, syncWithTrakt } = useStore.getState()
-    checkTraktStatus().then(() => {
-      if (useStore.getState().trakt.connected) {
-        syncWithTrakt()
-      }
-    })
+    // Only check connection status — no background sync
+    useStore.getState().checkTraktStatus()
   }, [])
 
   return null
