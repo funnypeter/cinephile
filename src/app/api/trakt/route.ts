@@ -21,7 +21,7 @@ async function getSession(req: NextRequest) {
 async function refreshToken(session: { refresh_token: string; username: string }) {
   const res = await fetch('https://api.trakt.tv/oauth/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'User-Agent': 'Cinephile/1.0' },
     body: JSON.stringify({
       refresh_token: session.refresh_token,
       client_id: process.env.TRAKT_CLIENT_ID,
@@ -70,6 +70,7 @@ async function handleRequest(req: NextRequest, method: string) {
     method,
     headers: {
       'Content-Type': 'application/json',
+      'User-Agent': 'Cinephile/1.0',
       'trakt-api-version': '2',
       'trakt-api-key': clientId,
       'Authorization': `Bearer ${session.access_token}`,

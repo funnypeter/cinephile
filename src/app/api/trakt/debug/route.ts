@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   // Test the token endpoint with a fake code to see what we get back
   const res = await fetch('https://api.trakt.tv/oauth/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'User-Agent': 'Cinephile/1.0' },
     body: JSON.stringify({
       code: 'debug_test',
       client_id: clientId,

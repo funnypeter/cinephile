@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
 
     const tokenRes = await fetch('https://api.trakt.tv/oauth/token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Cinephile/1.0',
+      },
       body: JSON.stringify({
         code,
         client_id: clientId,
@@ -42,6 +45,7 @@ export async function GET(req: NextRequest) {
     const userRes = await fetch('https://api.trakt.tv/users/me', {
       headers: {
         'Content-Type': 'application/json',
+        'User-Agent': 'Cinephile/1.0',
         'trakt-api-version': '2',
         'trakt-api-key': clientId,
         'Authorization': `Bearer ${tokens.access_token}`,

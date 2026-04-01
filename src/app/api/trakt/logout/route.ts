@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       // Best-effort revoke — don't fail if this errors
       await fetch('https://api.trakt.tv/oauth/revoke', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'User-Agent': 'Cinephile/1.0' },
         body: JSON.stringify({
           token: session.access_token,
           client_id: process.env.TRAKT_CLIENT_ID,
